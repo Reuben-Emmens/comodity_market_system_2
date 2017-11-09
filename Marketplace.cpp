@@ -2,76 +2,180 @@
 #include <algorithm>
 #include <vector>
 #include <iostream>
+#include <unordered_map>
 
 #include "Marketplace.h"
-#include "validate.h"
 
 using namespace std;
 
-// CREATORS
-Marketplace::Marketplace()
+// Anonymous namespace for functions to help validate commands.
+namespace {
+
+// Q: Why is it better to declare these static.
+static void validateCommand(const string& command, const unordered_map<string, int>& fmap)
 {
-  fmap.insert(make_pair( "POST", &Marketplace::post ));
-  fmap.insert(make_pair( "LIST", &Marketplace::list ));
-  fmap.insert(make_pair( "REVOKE", &Marketplace::revoke ));
-  fmap.insert(make_pair( "CHECK", &Marketplace::check ));
-  fmap.insert(make_pair( "AGGRESS", &Marketplace::aggress ));
+  if(fmap.find(command) == fmap.end())
+    throw invalid_argument("UNKNOWN_COMMAND " + command);
 }
 
+static bool isDouble(const string& s)
+{
+    try {
+        stod(s);
+    }
+    catch(...) {
+        return false;
+    }
+    return true;
+}
+
+static bool isInteger(const string& s)
+{
+    try {
+        stoi(s);
+    }
+    catch(...) {
+        return false;
+    }
+    return true;
+}
+static void validatePost(const vector<string>& params) 
+{
+  vector<string> validCommodities = {"GOLD", "SILV", "PORK", "RICE", "OIL"};
+  if( params[0] != "BUY" and params[0] != "SELL" )
+    throw invalid_argument("INVALID_SIDE");
+  if( find(validCommodities.begin(), validCommodities.end(), params[1]) 
+      == validCommodities.end() )
+    throw invalid_argument("INVALID_COMMODITY");
+  if( !isInteger(params[2]) or stoi(params[2]) < 1 ) 
+    throw invalid_argument("INVALID_AMMOUNT");
+  if( !isDouble(params[3]) or stod(params[3]) < 0.0 )
+    throw invalid_argument("INVALID_PRICE");
+}
+
+static void validateRevoke(const vector<string>& params)
+{
+  if(params.size() == 0)
+    throw invalid_argument("NO_ORDER_ID_PROVIDED");
+  if(!isInteger(params[0]) or stoi(params[0]) < 0)
+    throw invalid_argument("INVALID_ORDER_ID");
+}
+
+}
+
+
+// CREATORS
+Marketplace::Marketplace()
+{  }
+
 // MANIPULATORS
+
 void Marketplace::call(const string&         dealerId, 
                        const string&         command, 
                        const vector<string>& params)
 {
-  try {
-    validateCommand(command)
-    funcPtr fp = fmap.at(command);
-    return (this->*fp)(dealerId, params);
-  } catch (const exception& e) {
-    cerr << "ERROR: " << e.what() << endl;
+  // Map of command strings to ints to allow use of a switch statement.
+  const static unordered_map<string, int> command2int = {
+    {"POST",    0},
+    {"REVOKE",  1},
+    {"AGGRESS", 2},
+    {"LIST",    3},
+    {"CHECK",   4}
+
+  };
+
+  // Throw an exception if supplied command is not known.
+  validateCommand(command, command2int);
+
+  switch(command2int.at(command)) {
+      case 0 :  validatePost(params); 
+                post(dealerId, params[0], params[1], stoi(params[2]),
+                    stod(params[3]));
+                break;
+      case 1 : validateRevoke(params);
+               revoke(dealerId, stoi(params[0]));
+               break;
+      case 2 : //validateAggress();
+               aggress(dealerId, params);
+               break;
+      case 3 : //validateList(params);
+               list(dealerId, params);
+               break;
+      case 4 : //validateCheck(params);
+               check(dealerId, stoi(params[1]));
+               break;
   }
 }
 
-void Marketplace::post(const string& dealerId, const vector<string>& params)
+void Marketplace::post(const string& dealerId, 
+		       const string& side,
+		       const string& commodity,
+		       const int     ammount,
+		       const double  price)
 {
-
-  validatePostParameters(params);
-  
-  Order o(dealerId, params[0], params[1], stoi(params[2]), stod(params[3])); 
+  // Construct new Order object with post parameters.
+  Order o(dealerId, side,  commodity, ammount, price); 
 
   cout << o << " HAS BEEN POSTED" << endl;
 
-  orders.insert(make_pair(o.id(), o));
+  // Add Order to Marketplace map of orders.
+  d_orders.insert(make_pair(o.id(), o));
 }
 
-void Marketplace::revoke(const std::string&              dealerId, 
-                         const std::vector<std::string>& params)
+void Marketplace::revoke(const string& dealerId, const int orderId)
 {
-  validateRevokeParameters(params);
+  // Throw an exception supplied orderId is not in the orders map.
+ // validateRevoke(orderId);
 
-  int orderId = stoi(params[0]);
-  map<int, Order>::const_iterator it = orders.find(orderId);
+  map<int, Order>::const_iterator it = d_orders.find(orderId);
   
-  if(it == orders.end())
+  if(it == d_orders.end())
     throw invalid_argument("UNKNOWN_ORDER");
   else if(it->second.dealerId() != dealerId) {
-    throw invalid_argument("UNKNOWN_ORDER");
+    throw invalid_argument("UNAUTHORIZED");
   } else {
     cout << it->second.id() << " HAS BEEN REVOKED" << endl;
-    orders.erase(it);
+    d_orders.erase(it);
+  }
+}
+
+void Marketplace::aggress(const std::string&              dealerId, 
+                          const std::vector<std::string>& tradeParams)
+{ 
+  for(vector<string>::size_type i = 0; i != tradeParams.size(); i += 2) {
+    // Parse the trade parameters.
+    int orderId = stoi(tradeParams[i]);
+    int tradeQuantity = stoi(tradeParams[i+1]);
+
+    // Search the orders map for the orderId.
+    map<int, Order>::iterator it = d_orders.find(orderId);
+    Order& oRef = (it->second);
+
+    if(it == d_orders.end())
+      cerr << "UNKNOWN_ORDER" << endl;
+    else if(tradeQuantity > oRef.ammount())
+      cerr << "INALID_AMMOUNT" << endl;
+    else {
+      oRef.setAmmount(oRef.ammount() - tradeQuantity);
+      cout << (oRef.side() == "SELL" ? " BOUGHT " : " SOLD ") << tradeQuantity 
+           << " " << oRef.commodity() << " @ " << oRef.price() 
+           << (oRef.side() == "SELL" ? " FROM " : " TO ") << oRef.dealerId() << endl; 
+    }
   }
 }
 
 // ACCESSORS 
-void Marketplace::list(const std::string&              dealerId, 
-                       const std::vector<std::string>& params = vector<string>())
+
+const void Marketplace::list(
+                       const std::string&              dealerId, 
+                       const std::vector<std::string>& terms = vector<string>())
 { 
-  for(map<int, Order>::const_iterator it = orders.begin(); it != orders.end(); ++it) {  
+  for(map<int, Order>::const_iterator it = d_orders.begin(); it != d_orders.end(); ++it) {  
     bool match = true;
     // For each of the supplied search terms. 
-    for(auto i = 0; i != params.size(); ++i) {
+    for(auto i = 0; i != terms.size(); ++i) {
       // If the search term does not appear in the order.
-      if(params[i] != it->second.commodity() and params[i] != it->second.dealerId())
+      if(terms[i] != it->second.commodity() and terms[i] != it->second.dealerId())
         // Do not print.
         match = false; 
     }
@@ -79,12 +183,11 @@ void Marketplace::list(const std::string&              dealerId,
   }
 }
 
-void Marketplace::check(const std::string&              dealerId, 
-                        const std::vector<std::string>& params)
+const void Marketplace::check(const std::string& dealerId, const int orderId)
 { 
-  map<int, Order>::const_iterator it = orders.find(stoi(params[0]));
+  map<int, Order>::const_iterator it = d_orders.find(orderId);
 
-  if(it == orders.end())
+  if(it == d_orders.end())
     cerr << "UNKNOWN_ORDER" << endl;
   else if(it->second.dealerId() != dealerId)
     cout << "UNAUTHORIZED" << endl;
@@ -92,28 +195,5 @@ void Marketplace::check(const std::string&              dealerId,
     cout << it->second.id() << " HAS BEEN FILLED" << endl;
   else
     cout << it->second << endl;
-}
-
-void Marketplace::aggress(const std::string&              dealerId, 
-                          const std::vector<std::string>& params)
-{ 
-  for(vector<string>::size_type i = 0; i != params.size(); i += 2) {
-    int orderId = stoi(params[i]);
-    int tradeQuantity = stoi(params[i+1]);
-
-    map<int, Order>::iterator it = orders.find(orderId);
-
-    Order& oRef = (it->second);
-
-    if(it == orders.end())
-      cerr << "UNKNOWN_ORDER" << endl;
-    else if(tradeQuantity > oRef.ammount())
-      cerr << "INALID_AMMOUNT" << endl;
-    else {
-      oRef.setAmmount(oRef.ammount() - tradeQuantity);
-      cout << (oRef.side() == "SELL" ? "BOUGHT" : "SOLD") << " " << tradeQuantity 
-           << " @ " << oRef.price() << " FROM " << oRef.dealerId() << endl; 
-    }
-  }
 }
 

@@ -1,4 +1,7 @@
 #include <string>
+#include <ctype.h>
+#include <stdio.h>
+#include <cstring>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -19,6 +22,11 @@ bool validDealer(const string& dealerId)
 
 int main()
 { 
+
+  cout << toupper('c') << endl;
+
+  cout << "HA" << endl;
+
   //ifstream infile("orders.txt");
 
   Marketplace m;
@@ -28,6 +36,10 @@ int main()
 
     // Injest command word by word into a vector<string>.
     vector<string> words; 
+    
+    
+    
+    //transform(s.begin(), s.end(), s.begin(), toupper);
     split(s, back_inserter(words)); 
 
     string dealerId;
@@ -37,9 +49,10 @@ int main()
       // The first two words are always the dealerId and the command type
       // (command).
       dealerId = words[0]; 
-      command = words[1];
-    } catch(const length_error& e) {
+      command  = words[1];
+    } catch(const exception& e) {
       cerr << "INVALID_MESSAGE" << endl;
+      continue;
     }
 
     if(!validDealer(dealerId)) {
@@ -49,12 +62,20 @@ int main()
     }
 
     // Store the remaining words in a vector<string> called params.
-    vector<string> params(words.begin() + 2, words.end());
+    vector<string> params;
+    try {
+      params.insert(params.end(), words.begin() + 2, words.end());
+    } catch (const length_error& e) {
+      cerr << "ERROR: " << e.what() << endl;
+    }
 
     //cout << " > " << s << endl;
-
-      m.call(dealerId, command, params);
-      cout << "> ";
+    try {
+    m.call(dealerId, command, params);
+    } catch (const exception& e) {
+      cerr << "ERROR: " << e.what() << endl;
+    }
+    cout << "> ";
   }
 
   return 0;

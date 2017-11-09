@@ -5,11 +5,6 @@
 
 class Order {
 
-  public:
-    // TYPES
-    // typedef Order* iterator;
-    // typedef const Order* const_iterator;
-
   private:
     // DATA
     int         d_id;
@@ -42,7 +37,7 @@ class Order {
 
     friend 
     std::ostream& operator<<(std::ostream& os, const Order& o);
-
 };
 
 #endif
+

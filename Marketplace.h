@@ -9,13 +9,8 @@
 class Marketplace {
 
   private: 
-    // TYPES 
-    typedef void(Marketplace::*funcPtr)(const std::string& dealerId,
-                                        const std::vector<std::string>& params);
-
     // DATA
-    std::map<int, Order> orders;
-    std::map<std::string, funcPtr> fmap;
+    std::map<int, Order> d_orders;
 
   public:
     // CREATORS
@@ -26,21 +21,22 @@ class Marketplace {
               const std::string&              functionName, 
               const std::vector<std::string>& params); 
 
-    void post(const std::string&              dealerId, 
-              const std::vector<std::string>& params);
+    void post(const std::string& dealerId, 
+              const std::string& side,
+              const std::string& commodity,
+              const int          ammount,
+              const double       price);
 
-    void revoke(const std::string&              dealerId, 
-                const std::vector<std::string>& params);
+    void revoke(const std::string& dealerId, const int params);
 
     void aggress(const std::string&              dealerId, 
                  const std::vector<std::string>& params);
 
     // ACCESSORS 
-    void list(const std::string&              dealerId, 
-              const std::vector<std::string>& params);
+    const void list(const std::string&                   dealerId, 
+                    const std::vector<std::string>& terms);
 
-    void check(const std::string&              dealerId, 
-               const std::vector<std::string>& params);
+    const void check(const std::string& dealerId, const int orderId);
 };
 
 #endif
